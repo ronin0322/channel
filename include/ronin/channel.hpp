@@ -2,7 +2,7 @@
  * @Author: ronin0322
  * @Date: 2022-09-10 19:14:59
  * @LastEditors: ronin0322
- * @LastEditTime: 2022-09-10 20:52:32
+ * @LastEditTime: 2022-09-10 22:22:52
  * @FilePath: /channel/include/ronin/channel.hpp
  * @Description:
  *
@@ -32,13 +32,15 @@ namespace ronin
             if (is_closed_.load())
                 throw std::runtime_error("cannot write on closed channel");
             std::unique_lock<std::mutex> lck(mtx_);
-            while (cap_ > 0 && queue_.size() >= cap_)
+            if (cap_ > 0 && queue_.size() >= cap_)
             {
-                cnd_.wait(lck);
+                write_cnd_.wait(lck, [this]
+                                { return cap_ > 0 && queue_.size() < cap_; });
             }
             std::cout << "Write wake up" << std::endl;
             queue_.push(val);
-            cnd_.notify_one();
+            std::cout << queue_.front() << "[write] queue front" << std::endl;
+            read_cnd_.notify_one();
         }
         T Read()
         {
@@ -47,21 +49,24 @@ namespace ronin
                 return T();
             }
             std::unique_lock<std::mutex> lck(mtx_);
-            while (queue_.size() == 0 && !is_closed_.load())
+            if (queue_.size() == 0 && !is_closed_.load())
             {
-                cnd_.wait(lck);
+                read_cnd_.wait(lck, [this]
+                               { return queue_.size() != 0 || is_closed_.load(); });
             }
             std::cout << "Read wake up" << std::endl;
             auto val = queue_.front();
             queue_.pop();
-            cnd_.notify_one();
+            std::cout << queue_.front() << "[read] queue front" << std::endl;
+            write_cnd_.notify_one();
             return val;
         }
 
     private:
         std::size_t cap_;
         std::queue<T> queue_;
-        std::condition_variable cnd_;
+        std::condition_variable read_cnd_;
+        std::condition_variable write_cnd_;
         std::mutex mtx_;
         std::atomic<bool> is_closed_;
     };
