@@ -2,7 +2,7 @@
  * @Author: ronin0322
  * @Date: 2022-09-10 19:14:59
  * @LastEditors: ronin0322
- * @LastEditTime: 2022-09-10 22:22:52
+ * @LastEditTime: 2022-09-11 00:02:45
  * @FilePath: /channel/include/ronin/channel.hpp
  * @Description:
  *
@@ -21,11 +21,14 @@ namespace ronin
     public:
         Channel()
         {
+            cap_ = 0;
             is_closed_.store(false);
+            zero_cap_wait_.store(0);
         }
         Channel(int cap) : cap_(cap)
         {
             is_closed_.store(false);
+            zero_cap_wait_.store(0);
         }
         void Write(T val)
         {
@@ -36,6 +39,11 @@ namespace ronin
             {
                 write_cnd_.wait(lck, [this]
                                 { return cap_ > 0 && queue_.size() < cap_; });
+            }
+            if (cap_ == 0 && (queue_.size() >= cap_ + 1 || zero_cap_wait_.load() == 0))
+            {
+                write_cnd_.wait(lck, [this]
+                                { return cap_ == 0 && queue_.size() < cap_ + 1 && zero_cap_wait_.load() > 0; });
             }
             std::cout << "Write wake up" << std::endl;
             queue_.push(val);
@@ -51,8 +59,16 @@ namespace ronin
             std::unique_lock<std::mutex> lck(mtx_);
             if (queue_.size() == 0 && !is_closed_.load())
             {
+                zero_cap_wait_.store(zero_cap_wait_ + 1);
+                if (zero_cap_wait_.load() > 0 && cap_ == 0)
+                {
+                    // std::cout << "+++++" << zero_cap_wait_.load() <<" ** "<<queue_.size()<< std::endl;
+                    write_cnd_.notify_one();
+                }
+
                 read_cnd_.wait(lck, [this]
                                { return queue_.size() != 0 || is_closed_.load(); });
+                zero_cap_wait_.store(zero_cap_wait_ - 1);
             }
             std::cout << "Read wake up" << std::endl;
             auto val = queue_.front();
@@ -69,5 +85,6 @@ namespace ronin
         std::condition_variable write_cnd_;
         std::mutex mtx_;
         std::atomic<bool> is_closed_;
+        std::atomic<size_t> zero_cap_wait_;
     };
 }
