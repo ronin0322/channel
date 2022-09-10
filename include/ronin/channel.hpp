@@ -2,7 +2,7 @@
  * @Author: ronin0322
  * @Date: 2022-09-10 19:14:59
  * @LastEditors: ronin0322
- * @LastEditTime: 2022-09-10 20:50:13
+ * @LastEditTime: 2022-09-10 20:52:32
  * @FilePath: /channel/include/ronin/channel.hpp
  * @Description:
  *
@@ -32,7 +32,7 @@ namespace ronin
             if (is_closed_.load())
                 throw std::runtime_error("cannot write on closed channel");
             std::unique_lock<std::mutex> lck(mtx_);
-            while (cap_ > 0 && queue_.size() == cap_)
+            while (cap_ > 0 && queue_.size() >= cap_)
             {
                 cnd_.wait(lck);
             }

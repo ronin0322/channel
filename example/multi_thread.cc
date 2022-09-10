@@ -2,7 +2,7 @@
  * @Author: ronin0322
  * @Date: 2022-09-10 19:25:17
  * @LastEditors: ronin0322
- * @LastEditTime: 2022-09-10 20:46:43
+ * @LastEditTime: 2022-09-10 20:55:44
  * @FilePath: /channel/example/multi_thread.cc
  * @Description:
  *
@@ -18,12 +18,12 @@ void ReadThreadTask(ronin::Channel<int> *ch)
 }
 void WriteThreadTask(ronin::Channel<int> *ch, int val)
 {
-    std::cout << "ch->Write(" << val << ")" << std::endl;
     ch->Write(val);
+    std::cout << "ch->Write(" << val << ")" << std::endl;
 }
 int main()
 {
-    int threads_num = 2;
+    int threads_num = 10;
     ronin::Channel<int> ch(1);
     std::thread read_threads[threads_num];
 
